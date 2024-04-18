@@ -1,0 +1,126 @@
+#include <Arduino.h>
+#include <WiFi.h>
+
+// Define the pins connected to the relay module
+const int RELAY1_PIN = 2;
+const int RELAY2_PIN = 3;
+const int RELAY3_PIN = 4;
+const int RELAY4_PIN = 5;
+const int buzzer = 8;
+
+// Replace with your own network credentials
+const char* ssid = "Lakshmi";
+const char* password = "157vasav";
+
+// Function to initialize the relay pins as outputs
+void setupRelays() {
+  pinMode(RELAY1_PIN, OUTPUT);
+  pinMode(RELAY2_PIN, OUTPUT);
+  pinMode(RELAY3_PIN, OUTPUT);
+  pinMode(RELAY4_PIN, OUTPUT);
+  pinMode(buzzer,OUTPUT);
+}
+
+// Function to turn on the specified relay
+void turnOnRelay(int relay) {
+  switch(relay) {
+    case 1:
+      digitalWrite(RELAY1_PIN, HIGH);
+      break;
+    case 2:
+      digitalWrite(RELAY2_PIN, HIGH);
+      break;
+    case 3:
+      digitalWrite(RELAY3_PIN, HIGH);
+      break;
+    case 4:
+      digitalWrite(RELAY4_PIN, HIGH);
+      break;
+    case 5:
+      digitalWrite(buzzer,HIGH);
+      break;
+  }
+}
+
+// Function to turn off the specified relay
+void turnOffRelay(int relay) {
+  switch(relay) {
+    case 1:
+      digitalWrite(RELAY1_PIN, LOW);
+      break;
+    case 2:
+      digitalWrite(RELAY2_PIN, LOW);
+      break;
+    case 3:
+      digitalWrite(RELAY3_PIN, LOW);
+      break;
+    case 4:
+      digitalWrite(RELAY4_PIN, LOW);
+      break;
+    case 5:
+      digitalWrite(buzzer,LOW);
+      break;
+  }
+}
+
+// Function to turn off all relays
+void turnOffAllRelays() {
+  digitalWrite(RELAY1_PIN, LOW);
+  digitalWrite(RELAY2_PIN, LOW);
+  digitalWrite(RELAY3_PIN, LOW);
+  digitalWrite(RELAY4_PIN, LOW);
+  digitalWrite(buzzer,LOW);
+}
+
+void send_SMS()
+{
+  Serial2.println("AT+CMGF=1"); // Configuring TEXT mode
+  updateSerial();
+  Serial2.println("AT+CMGS=\"+918136977444\"");//change ZZ with country code and xxxxxxxxxxx with phone number to sms
+  updateSerial();
+  Serial2.print("Send Help"); //text content
+  updateSerial();
+  Serial2.write(26);
+}
+
+void setup() {
+  // Initialize relay pins
+  setupRelays();
+  
+  // Initialize Wi-Fi connection
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(ssid, password);
+  
+  while(WiFi.status() != WL_CONNECTED){
+    delay(100);
+  }
+  
+  Serial.begin(115200);
+  Serial.println("\nConnected to the WiFi network");
+  
+}
+
+void loop() {
+  // Check if data is available to read from serial monitor
+  if (Serial.available() > 0) {
+    // Read the input from serial monitor
+    int relay = Serial.parseInt();
+    
+    // Ensure the input is within valid range
+    if (relay >= 1 && relay <= 4) {
+      // Toggle the corresponding relay
+      if (digitalRead(relay) == LOW) {
+        turnOnRelay(relay);
+      } else {
+        turnOffRelay(relay);
+      }
+    } else if (relay == 0) {
+      // If 0 is entered, turn off all relays
+      turnOffAllRelays();
+      else if (relay==6){
+        //If 6 is entered , send sms 
+        send_SMS();
+      }
+    }
+  }
+}
