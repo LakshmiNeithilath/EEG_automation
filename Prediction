@@ -1,0 +1,126 @@
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+from sklearn.pipeline import Pipeline
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
+from sklearn.model_selection import ShuffleSplit, cross_val_score, train_test_split
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
+
+import mne
+import os
+
+# Define the directory where your .gdf files are located
+data_dir = "C:\\Users\laksh\Downloads\S01_MI"
+# Get a list of .gdf files in the directory
+gdf_files = [f for f in os.listdir(data_dir) if f.endswith('.gdf')]
+# Create an empty list to store raw objects
+raw_list = []
+# Loop through the .gdf files and append their data to the list
+for gdf_file in gdf_files:
+    gdf_path = os.path.join(data_dir, gdf_file)
+    raw = mne.io.read_raw_gdf(gdf_path)
+    raw_list.append(raw)
+# Concatenate raw objects
+raw_concatenated = mne.io.concatenate_raws(raw_list)
+
+# Extract events from annotations
+events, _ = mne.events_from_annotations(raw_concatenated)
+
+# Define event IDs
+event_id = {'1536': 1, '1537': 2, '1538': 3, '1539': 4, '1540': 5, '1541': 6}
+# Create epochs
+tmin, tmax = 1, 5
+epochs = mne.Epochs(raw_concatenated, events, event_id=event_id, tmin=tmin, tmax=tmax, baseline=None)
+
+# Define picks (electrodes)
+picks = mne.pick_types(raw_concatenated.info, meg=False, eeg=True, stim=False, eog=False,
+                       exclude='bads')
+
+# Define the CSP parameters
+csp = mne.decoding.CSP(n_components=4, reg=None, log=True, norm_trace=False)
+
+# Define the LDA classifier
+lda = LinearDiscriminantAnalysis()
+
+# Create a pipeline with CSP and LDA
+clf = Pipeline([('CSP', csp), ('LDA', lda)])
+
+# Define cross-validation parameters
+cv = ShuffleSplit(n_splits=10, test_size=0.2, random_state=42)
+# Perform cross-validation
+scores = cross_val_score(clf, epochs.get_data(), epochs.events[:, -1], cv=cv, n_jobs=1)
+
+# Print the cross-validation scores
+print("Cross-Validation Scores:", scores)
+print("Mean Accuracy:", np.mean(scores))
+
+# Split the data into training and testing sets
+X_train, X_test, y_train, y_test = train_test_split(
+    epochs.get_data(), epochs.events[:, -1], test_size=0.2, random_state=42)
+print('tester 1')
+# Fit the classifier on the entire training set
+clf.fit(X_train, y_train)
+
+print('tester 2')
+# Predict labels for the test set
+y_pred = clf.predict(X_test)
+
+print('tester 3')
+# Generate confusion matrix
+conf_matrix = confusion_matrix(y_test, y_pred)
+print("Confusion Matrix:")
+print(conf_matrix)
+
+# Calculate overall accuracy
+accuracy = accuracy_score(y_test, y_pred)
+print("Overall Accuracy:", accuracy)
+# Print classification report for detailed accuracy per class
+class_report = classification_report(y_test, y_pred)
+print("Classification Report:\n", class_report)
+print("trial 1")
+# Reading new data for prediction
+raw_new_data = mne.io.read_raw_gdf("C:/Users/laksh/Downloads/S01_MI/motorimagination_subject1_run2.gdf", preload=True)
+
+# Extract events from annotations in the new data
+events_new_data, _ = mne.events_from_annotations(raw_new_data, event_id=event_id)
+
+# Extract epochs around events in the new data
+epochs_new_data = mne.Epochs(raw_new_data, events_new_data, event_id=event_id, tmin=tmin, tmax=tmax, baseline=None, preload=True
+                        )
+
+# Select EEG channels
+eeg_epochs_new_data = epochs_new_data.pick_types(eeg=True)
+
+# Get data from the new dataset
+X_new_data = eeg_epochs_new_data.get_data()
+print('trial 2')
+# Make predictions on the new data
+predictions_new_data = clf.predict(X_new_data)
+
+print('trial 3')
+# Map event codes to event names
+event_names = {1: 'elbow_flexion', 2: 'elbow_extension', 3: 'supination', 4: 'pronation', 5: 'hand_close', 6: 'hand_open', 7: 'rest'}
+
+# Check if specific events exist in the predictions and send corresponding signals through serial port
+import serial
+#import time
+
+# Configure the serial port
+#ser=serial.Serial(port='COM5', baudrate=115200,timeout=0.1)
+#ser = serial.Serial(port='COM10', baudrate=115200, timeout=0.1)
+print('taylor')
+for event_code in event_id.values():
+    if event_code in predictions_new_data:
+        event_name = event_names[event_code]
+        signal = event_code  # You can change this to whatever signal you want to send
+        #ser.write(str(signal).encode())
+        #time.sleep(1)
+        print(f"The event (name): {event_name} (code: {event_code}) exists in the predictions and signal {signal} has been sent.")
+    else:
+        print(f"The event (code: {event_code}) does not exist in the predictions.")
+
+# Close the serial port
+#ser.close()
+
+
